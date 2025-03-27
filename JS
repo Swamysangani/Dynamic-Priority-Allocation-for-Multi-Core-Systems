@@ -1,0 +1,330 @@
+class Task {
+    constructor(name, priority, deadline, executionTime, timeQuantum, currentTime) {
+        this.name = name;
+        this.priority = priority;
+        this.deadline = deadline;
+        this.executionTime = executionTime;
+        this.timeQuantum = timeQuantum;
+        this.remainingTime = executionTime;
+        this.waitingTime = 0;
+        this.startTime = null;
+        this.status = 'Pending';
+        this.queueEntryTime = currentTime; // Time when the task enters the queue
+        this.hasStarted = false; // Flag to track if the task has started running
+    }
+}
+
+class Scheduler {
+    constructor(numCores) {
+        this.cores = Array(numCores).fill(null);
+        this.queue = [];
+        this.allTasks = [];
+        this.running = false;
+        this.algorithm = 'rr';
+        this.logs = [];
+        this.interval = null;
+        this.startTime = null;
+        this.completedTasks = 0;
+        this.totalWaitingTime = 0;
+        this.currentTime = 0;
+        this.utilizationData = [];
+        this.canvas = document.getElementById('utilizationGraph');
+        this.ctx = this.canvas.getContext('2d');
+        this.maxTime = 1600; // Fixed time scale for the graph (ms)
+        this.maxDataPoints = this.maxTime / 100; // One data point every 100ms
+        this.baseTickInterval = 500; // Slower default speed (500ms per tick)
+        this.speed = 1; // Default speed multiplier
+    }
+
+    addTask(task) {
+        this.queue.push(task);
+        this.allTasks.push(task);
+        this.updateQueueUI();
+    }
+
+    start() {
+        if (!this.running) {
+            this.running = true;
+            this.startTime = Date.now();
+            this.scheduleTick();
+        }
+    }
+
+    pause() {
+        this.running = false;
+        clearTimeout(this.interval);
+    }
+
+    reset() {
+        this.pause();
+        this.cores.fill(null);
+        this.queue = [];
+        this.allTasks = [];
+        this.logs = [];
+        this.completedTasks = 0;
+        this.totalWaitingTime = 0;
+        this.startTime = null;
+        this.currentTime = 0;
+        this.utilizationData = [];
+        this.updateUI();
+    }
+
+    scheduleTick() {
+        if (!this.running) return;
+        const adjustedInterval = this.baseTickInterval / this.speed;
+        this.interval = setTimeout(() => {
+            this.tick();
+            this.scheduleTick();
+        }, adjustedInterval);
+    }
+
+    setSpeed(speed) {
+        this.speed = parseFloat(speed);
+        if (this.running) {
+            this.pause();
+            this.start();
+        }
+    }
+
+    tick() {
+        if (!this.running) return;
+
+        this.currentTime += 100;
+
+        // Update waiting time for tasks in the queue
+        this.queue.forEach(task => {
+            if (!task.hasStarted) {
+                task.waitingTime = this.currentTime - task.queueEntryTime;
+            }
+            task.status = 'Waiting';
+        });
+
+        this.cores.forEach(task => {
+            if (task) {
+                task.status = 'Running';
+                task.hasStarted = true; // Mark the task as started
+            }
+        });
+
+        this.scheduleTasks();
+        this.updateUI();
+
+        // Stop simulation if all tasks are completed
+        if (this.queue.length === 0 && this.cores.every(core => !core)) {
+            this.pause();
+        }
+    }
+
+    scheduleTasks() {
+        switch (this.algorithm) {
+            case 'rr': this.roundRobin(); break;
+            case 'fcfs': this.fcfs(); break;
+            case 'sjn': this.sjn(); break;
+            case 'priority': this.priorityScheduling(); break;
+            case 'multilevel': this.multilevelQueue(); break;
+        }
+    }
+
+    roundRobin() {
+        this.cores.forEach((core, i) => {
+            if (core && core.remainingTime <= 0) {
+                this.logTaskCompletion(core);
+                this.cores[i] = null;
+            }
+            if (!core && this.queue.length) {
+                const task = this.queue.shift();
+                task.startTime = task.startTime || Date.now();
+                this.cores[i] = task;
+            }
+            if (core) {
+                core.remainingTime -= 100;
+                if (core.remainingTime > 0 && core.timeQuantum) {
+                    const quantumElapsed = Date.now() - core.startTime;
+                    if (quantumElapsed >= core.timeQuantum) {
+                        core.queueEntryTime = this.currentTime; // Update queue entry time when task is returned to queue
+                        this.queue.push(core);
+                        this.cores[i] = null;
+                    }
+                }
+            }
+        });
+    }
+
+    fcfs() {
+        this.cores.forEach((core, i) => {
+            if (core && core.remainingTime <= 0) {
+                this.logTaskCompletion(core);
+                this.cores[i] = null;
+            }
+            if (!core && this.queue.length) {
+                this.cores[i] = this.queue.shift();
+                this.cores[i].startTime = Date.now();
+            }
+            if (core) core.remainingTime -= 100;
+        });
+    }
+
+    sjn() {
+        this.queue.sort((a, b) => a.remainingTime - b.remainingTime);
+        this.fcfs();
+    }
+
+    priorityScheduling() {
+        this.queue.sort((a, b) => {
+            const priorities = { high: 5, medium: 3, low: 1 };
+            return priorities[b.priority] - priorities[a.priority];
+        });
+        this.fcfs();
+    }
+
+    multilevelQueue() {
+        const high = this.queue.filter(t => t.priority === 'high');
+        const medium = this.queue.filter(t => t.priority === 'medium');
+        const low = this.queue.filter(t => t.priority === 'low');
+        this.queue = [...high, ...medium, ...low];
+        this.fcfs();
+    }
+
+    logTaskCompletion(task) {
+        const turnaround = Date.now() - task.startTime;
+        this.logs.push(`${task.name} completed. Turnaround: ${turnaround}ms, Waiting: ${task.waitingTime}ms`);
+        this.completedTasks++;
+        this.totalWaitingTime += task.waitingTime;
+        task.status = 'Completed';
+    }
+
+    updateQueueUI() {
+        const tableBody = document.getElementById('taskTableBody');
+        tableBody.innerHTML = this.allTasks.map(task => `
+            <tr>
+                <td><span class="priority-dot"></span>${task.name}</td>
+                <td>${task.priority === 'high' ? 5 : task.priority === 'medium' ? 3 : 1}</td>
+                <td>${task.executionTime}ms</td>
+                <td>${task.remainingTime}ms</td>
+                <td><span class="status">${task.status}</span></td>
+                <td>
+                    <div style="width: 100px; background: #dfe6e9; border-radius: 5px;">
+                        <div class="progress-bar" style="width: ${((task.executionTime - task.remainingTime) / task.executionTime) * 100}%"></div>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    updateGraph() {
+        const utilization = (this.cores.filter(c => c).length / this.cores.length) * 100;
+        this.utilizationData.push({ time: this.currentTime, utilization });
+
+        // Keep data points up to maxTime
+        if (this.currentTime > this.maxTime) {
+            this.utilizationData = this.utilizationData.filter(data => data.time <= this.maxTime);
+        }
+
+        // Draw the graph
+        const canvas = this.canvas;
+        const ctx = this.ctx;
+        const width = canvas.width = canvas.parentElement.clientWidth;
+        const height = canvas.height = 150;
+
+        ctx.clearRect(0, 0, width, height);
+
+        // Draw grid lines
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= 5; i++) {
+            const y = (i * height) / 5;
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(width, y);
+            ctx.stroke();
+        }
+
+        // Draw utilization line
+        if (this.utilizationData.length > 1) {
+            ctx.strokeStyle = '#3498db';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            const step = width / this.maxTime;
+            this.utilizationData.forEach((data, i) => {
+                const x = data.time * step;
+                const y = height - (data.utilization / 100) * height;
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            });
+            ctx.stroke();
+        }
+    }
+
+    updateUI() {
+        this.updateQueueUI();
+        this.updateGraph();
+        const coreDiv = document.getElementById('coreContainer');
+        coreDiv.innerHTML = this.cores.map((task, i) => `
+            <div class="core">
+                Core ${i + 1}
+                ${task ? `
+                    <div class="${task.priority}">${task.name}</div>
+                    <div class="progress-bar" style="width: ${((task.executionTime - task.remainingTime) / task.executionTime) * 100}%"></div>
+                ` : 'Idle'}
+            </div>
+        `).join('');
+
+        const elapsedTime = this.startTime ? (Date.now() - this.startTime) / 1000 : 0;
+        const throughput = elapsedTime > 0 ? (this.completedTasks / elapsedTime).toFixed(2) : 0;
+        const avgWaitingTime = this.completedTasks > 0 ? (this.totalWaitingTime / this.completedTasks).toFixed(2) : 0;
+
+        document.getElementById('throughput').textContent = `${throughput} tasks/second`;
+        document.getElementById('avgWaitingTime').textContent = `${avgWaitingTime} milliseconds`;
+        document.getElementById('tasksCompleted').textContent = this.completedTasks;
+        document.getElementById('tasksWaiting').textContent = this.queue.length;
+    }
+
+    exportToCSV() {
+        const csv = ['Task Log\n', ...this.logs].join('\n');
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'execution_log.csv';
+        a.click();
+    }
+}
+
+const scheduler = new Scheduler(4);
+
+// Event Listeners
+document.getElementById('addTask').addEventListener('click', (e) => {
+    e.preventDefault();
+    const task = new Task(
+        document.getElementById('taskName').value,
+        document.getElementById('priority').value,
+        parseInt(document.getElementById('deadline').value),
+        parseInt(document.getElementById('executionTime').value),
+        parseInt(document.getElementById('timeQuantum').value) || null,
+        scheduler.currentTime // Pass the current simulation time
+    );
+    scheduler.addTask(task);
+    document.querySelector('.task-form').reset();
+});
+
+document.getElementById('startBtn').addEventListener('click', () => scheduler.start());
+document.getElementById('pauseBtn').addEventListener('click', () => scheduler.pause());
+document.getElementById('resetBtn').addEventListener('click', () => scheduler.reset());
+document.getElementById('algorithm').addEventListener('change', (e) => {
+    scheduler.algorithm = e.target.value;
+});
+document.getElementById('toggleMode').addEventListener('click', () => {
+    document.body.classList.toggle('dark');
+});
+document.getElementById('settingsBtn').addEventListener('click', () => {
+    scheduler.exportToCSV();
+});
+
+document.getElementById('speedSelect').addEventListener('change', (e) => {
+    scheduler.setSpeed(e.target.value);
+});
+
+scheduler.updateUI();

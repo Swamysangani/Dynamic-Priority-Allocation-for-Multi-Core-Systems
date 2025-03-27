@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Priority Allocation System</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <nav>
+            <h1>Dynamic Priority Allocation System</h1>
+            <div class="nav-controls">
+                <button id="startBtn">Start</button>
+                <button id="pauseBtn">Pause</button>
+                <button id="resetBtn">Reset</button>
+                <button id="settingsBtn">Settings</button>
+                <button id="toggleMode">Toggle Mode</button>
+                <div class="speed-control">
+                    <select id="speedSelect">
+                        <option value="0.5">0.5x</option>
+                        <option value="1" selected>1x</option>
+                        <option value="1.5">1.5x</option>
+                        <option value="2">2x</option>
+                    </select>
+                </div>
+            </div>
+        </nav>
+        
+        <div class="left-panel">
+            <h2>Task Control</h2>
+            <form class="task-form">
+                <input type="text" id="taskName" placeholder="Task Name" required>
+                <select id="priority">
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                </select>
+                <input type="number" id="deadline" placeholder="Deadline (ms)" required>
+                <input type="number" id="executionTime" placeholder="Execution Time (ms)" required>
+                <input type="number" id="timeQuantum" placeholder="Time Quantum (ms)">
+                <select id="algorithm">
+                    <option value="rr">Round Robin</option>
+                    <option value="fcfs">FCFS</option>
+                    <option value="sjn">Shortest Job Next</option>
+                    <option value="priority">Priority Scheduling</option>
+                    <option value="multilevel">Multilevel Queue</option>
+                </select>
+                <button type="submit" id="addTask">Add Task</button>
+            </form>
+        </div>
+        
+        <div class="right-panel">
+            <h2>Task Queue</h2>
+            <div class="task-queue">
+                <table class="task-table">
+                    <thead>
+                        <tr>
+                            <th>Task</th>
+                            <th>Priority</th>
+                            <th>Execution Time</th>
+                            <th>Remaining Time</th>
+                            <th>Status</th>
+                            <th>Progress</th>
+                        </tr>
+                    </thead>
+                    <tbody id="taskTableBody"></tbody>
+                </table>
+            </div>
+            <h2>CPU Cores</h2>
+            <div class="core-container" id="coreContainer"></div>
+        </div>
+        
+        <div class="bottom-section">
+            <div class="cpu-utilization">
+                <h2>CPU Utilization</h2>
+                <div class="graph-container">
+                    <canvas id="utilizationGraph"></canvas>
+                    <div class="graph-labels-y">
+                        <span>100%</span>
+                        <span>80%</span>
+                        <span>60%</span>
+                        <span>40%</span>
+                        <span>20%</span>
+                        <span>0%</span>
+                    </div>
+                    <div class="graph-labels-x">
+                        <span>0</span>
+                        <span>Simulation Time (ms)</span>
+                        <span id="timeLabel">1600</span>
+                    </div>
+                </div>
+            </div>
+            <div class="performance-metrics">
+                <h2>Performance Metrics</h2>
+                <div class="metric-box">
+                    <h3>Throughput</h3>
+                    <p id="throughput">0.00 tasks/second</p>
+                </div>
+                <div class="metric-box">
+                    <h3>Avg. Waiting Time</h3>
+                    <p id="avgWaitingTime">0 milliseconds</p>
+                </div>
+                <div class="metric-box">
+                    <h3>Tasks Completed</h3>
+                    <p id="tasksCompleted">0</p>
+                </div>
+                <div class="metric-box">
+                    <h3>Tasks Waiting</h3>
+                    <p id="tasksWaiting">0</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
